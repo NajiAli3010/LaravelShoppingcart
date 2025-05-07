@@ -442,3 +442,32 @@ Cart::add('1239ad0', 'Product 2', 2, 5.95, ['size' => 'large']);
    	</tfoot>
 </table>
 ```
+
+### Comparing Cart Totals for Different Sellers
+
+With the new functionality, you can now add items to the cart for specific sellers and compare their totals. Here's an example:
+
+```php
+use Gloudemans\Shoppingcart\Facades\Cart;
+
+// Add items for different sellers
+Cart::addWithSeller('192ao12', 'Product 1', 1, 9.99, 'Seller1');
+Cart::addWithSeller('1239ad0', 'Product 2', 2, 5.95, 'Seller2');
+Cart::addWithSeller('192ao12', 'Product 1', 1, 8.99, 'Seller2');
+
+// Get the total price for each seller
+$totalSeller1 = Cart::totalForSeller('Seller1'); // Outputs total for Seller1
+$totalSeller2 = Cart::totalForSeller('Seller2'); // Outputs total for Seller2
+
+echo "Total for Seller1: $totalSeller1\n";
+echo "Total for Seller2: $totalSeller2\n";
+
+// Get cart content grouped by sellers
+$contentBySellers = Cart::contentBySellers();
+
+foreach ($contentBySellers as $seller => $items) {
+    echo "Items for $seller:\n";
+    foreach ($items as $item) {
+        echo "- {$item->name}, Qty: {$item->qty}, Price: {$item->price}\n";
+    }
+}

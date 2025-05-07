@@ -77,6 +77,80 @@ class Cart
     }
 
     /**
+     * Add an item to the cart with seller-specific pricing.
+     *
+     * @param mixed     $id
+     * @param mixed     $name
+     * @param int|float $qty
+     * @param float     $price
+     * @param string    $seller
+     * @param array     $options
+     * @return \Gloudemans\Shoppingcart\CartItem
+     */
+    public function addWithSeller($id, $name = null, $qty = null, $price = null, $seller = null, array $options = [])
+    {
+        if ($this->isMulti($id)) {
+            return array_map(function ($item) use ($seller) {
+                return $this->addWithSeller($item['id'], $item['name'], $item['qty'], $item['price'], $seller, $item['options'] ?? []);
+            }, $id);
+        }
+
+        $cartItem = $this->createCartItem($id, $name, $qty, $price, $options);
+        $cartItem->seller = $seller; // Add seller information to the cart item
+
+        $content = $this->getContent();
+
+        $rowId = $cartItem->rowId . '-' . $seller; // Unique rowId for seller-specific items
+        if ($content->has($rowId)) {
+            $cartItem->qty += $content->get($rowId)->qty;
+        }
+
+        $content->put($rowId, $cartItem);
+
+        $this->events->fire('cart.added', $cartItem);
+
+        $this->session->put($this->instance, $content);
+
+        return $cartItem;
+    }
+
+    /**
+     * Get the total price for a specific seller.
+     *
+     * @param string $seller
+     * @param int    $decimals
+     * @param string $decimalPoint
+     * @param string $thousandSeperator
+     * @return string
+     */
+    public function totalForSeller($seller, $decimals = null, $decimalPoint = null, $thousandSeperator = null)
+    {
+        $content = $this->getContent();
+
+        $total = $content->filter(function ($cartItem) use ($seller) {
+            return $cartItem->seller === $seller;
+        })->reduce(function ($total, $cartItem) {
+            return $total + ($cartItem->qty * $cartItem->priceTax);
+        }, 0);
+
+        return $this->numberFormat($total, $decimals, $decimalPoint, $thousandSeperator);
+    }
+
+    /**
+     * Get the cart content grouped by sellers.
+     *
+     * @return array
+     */
+    public function contentBySellers()
+    {
+        $content = $this->getContent();
+
+        return $content->groupBy(function ($cartItem) {
+            return $cartItem->seller;
+        });
+    }
+
+    /**
      * Add an item to the cart.
      *
      * @param mixed     $id
@@ -103,7 +177,7 @@ class Cart
         }
 
         $content->put($cartItem->rowId, $cartItem);
-        
+
         $this->events->fire('cart.added', $cartItem);
 
         $this->session->put($this->instance, $content);
@@ -184,7 +258,7 @@ class Cart
     {
         $content = $this->getContent();
 
-        if ( ! $content->has($rowId))
+        if (! $content->has($rowId))
             throw new InvalidRowIDException("The cart does not contain rowId {$rowId}.");
 
         return $content->get($rowId);
@@ -305,7 +379,7 @@ class Cart
      */
     public function associate($rowId, $model)
     {
-        if(is_string($model) && ! class_exists($model)) {
+        if (is_string($model) && ! class_exists($model)) {
             throw new UnknownModelException("The supplied model {$model} does not exist.");
         }
 
@@ -371,7 +445,7 @@ class Cart
      */
     public function restore($identifier)
     {
-        if( ! $this->storedCartWithIdentifierExists($identifier)) {
+        if (! $this->storedCartWithIdentifierExists($identifier)) {
             return;
         }
 
@@ -408,15 +482,15 @@ class Cart
      */
     public function __get($attribute)
     {
-        if($attribute === 'total') {
+        if ($attribute === 'total') {
             return $this->total();
         }
 
-        if($attribute === 'tax') {
+        if ($attribute === 'tax') {
             return $this->tax();
         }
 
-        if($attribute === 'subtotal') {
+        if ($attribute === 'subtotal') {
             return $this->subtotal();
         }
 
@@ -474,7 +548,7 @@ class Cart
      */
     private function isMulti($item)
     {
-        if ( ! is_array($item)) return false;
+        if (! is_array($item)) return false;
 
         return is_array(head($item)) || head($item) instanceof Buyable;
     }
@@ -533,13 +607,13 @@ class Cart
      */
     private function numberFormat($value, $decimals, $decimalPoint, $thousandSeperator)
     {
-        if(is_null($decimals)){
+        if (is_null($decimals)) {
             $decimals = is_null(config('cart.format.decimals')) ? 2 : config('cart.format.decimals');
         }
-        if(is_null($decimalPoint)){
+        if (is_null($decimalPoint)) {
             $decimalPoint = is_null(config('cart.format.decimal_point')) ? '.' : config('cart.format.decimal_point');
         }
-        if(is_null($thousandSeperator)){
+        if (is_null($thousandSeperator)) {
             $thousandSeperator = is_null(config('cart.format.thousand_seperator')) ? ',' : config('cart.format.thousand_seperator');
         }
 
